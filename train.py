@@ -15,15 +15,18 @@ import numpy as np
 import seaborn as sns
 from sklearn import preprocessing
 from sklearn.ensemble import (
-    AdaBoostClassifier,
+    # AdaBoostClassifier,
     RandomForestClassifier,
-    VotingClassifier,
+    # VotingClassifier,
 )
-from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report
 from sklearn.model_selection import train_test_split
-from sklearn.naive_bayes import GaussianNB
+
 from sklearn.neural_network import MLPClassifier
+
+# from sklearn.linear_model import LogisticRegression
+# from sklearn.naive_bayes import GaussianNB
+from lightgbm import LGBMClassifier
 
 
 NUM_FEA = 24
@@ -147,20 +150,22 @@ def ml_classifier(X_train:np.array,y_train:np.array, X_val,y_val,X_test,y_test,c
             max_iter=1000,
             learning_rate="adaptive",
         )
+    elif clf == 'lgbm':
+        clf = LGBMClassifier()
     # elif clf == 'other':
     #     clf = ()
     else:
         raise Exception(f"The {clf} classifier has not been implemented.")
 
-    clf.fit(X_train.reshape(X_train.shape[0], X_train.shape[1] * X_train.shape[2]), y_train)
+    clf.fit(X_train, y_train)
 
     y_train_pred = clf.predict(
-        X_train.reshape(X_train.shape[0], X_train.shape[1] * X_train.shape[2])
+        X_train
     )
-    y_val_pred = clf.predict(X_val.reshape(X_val.shape[0], X_val.shape[1] * X_val.shape[2]))
+    y_val_pred = clf.predict(X_val)
 
     y_test_pred = clf.predict(
-        X_test.reshape(X_test.shape[0], X_test.shape[1] * X_test.shape[2])
+        X_test
     )
     if matrix == True:
         print(classification_report(y_train, y_train_pred))
@@ -170,6 +175,7 @@ def ml_classifier(X_train:np.array,y_train:np.array, X_val,y_val,X_test,y_test,c
 
 def test_step(clf:object,X:np.array,y:np.array):
     '''
+    Test the model on given X and y data.
 
     :param clf: a trainined classifier from sklearn
     :param X: test set x data (n,len,num_feature)
@@ -181,8 +187,30 @@ def test_step(clf:object,X:np.array,y:np.array):
     )
     print(classification_report(y, y_test_pred))
 
+def load_feature(path:str):
+
+    return pd.read_csv(path).rename(columns={"Unnamed: 0": "id"})
+
+
+def convert_feature_to_np(fea_pd:pd.DataFrame,selected_fea:list)->np.array:
+    '''
+    convert features from Dataframe to np.array() ( lgbm model can not use df.)
+    :param fea_pd:
+    :param selected_fea: a list of selected feature names
+    :return: array (num_sample,num_features)
+    '''
+    num_sample = len(fea_pd)
+    num_fea = len(selected_fea)
+    fea_np = np.empty((1,num_fea))
+
+    fea_pd = fea_pd.drop('id',axis =1)
+    for idx in range(num_sample):
+        fea_np = np.concatenate((fea_np,fea_pd.iloc[idx].to_numpy().reshape(1,-1)),axis=0)
+
+    return fea_np[1:]
 
 def main():
+    # us preprocessed data
     print('Loading data...')
     meta_pd_01 = load_data("data/Versuchreihe_09_2020/machine_data/","data/Versuchreihe_09_2020/Label.xlsx")
     meta_pd_02 = load_data("data/Versuchsreihe_01_2022/renamed_machine_data/","data/Versuchsreihe_01_2022/Label.xlsx")
@@ -192,11 +220,25 @@ def main():
     X_01_train,y_01_train, X_01_val,y_01_val,X_01_test,y_01_test = data_split(X_01,y_01,0.3)
 
     print("Training classifier...")
-    ml_clf  = ml_classifier(X_01_train,y_01_train, X_01_val,y_01_val,X_01_test,y_01_test,'mlp',True)
+    ml_clf  = ml_classifier(X_01_train.reshape(X_01_train.shape[0],-1),y_01_train,
+                            X_01_val.reshape(X_01_val.shape[0],-1),y_01_val,
+                            X_01_test.reshape(X_01_test.shape[0],-1),y_01_test,
+                            'lgbm',False)
 
 
     print("Testing on test set")
     test_step(ml_clf,X_02,y_02)
+
+
+
+    # Use extracted features from Tsfresh
+    X_01_fea = load_feature('feature/X_tsf_01.csv')
+    ## TODO: feature selection? 18101 features are too much here.
+    selected_fea = X_01_fea.columns.tolist()
+    selected_fea.remove('id')
+    X_01_fea=convert_feature_to_np(X_01_fea, selected_fea)
+    X_01_train,y_01_train, X_01_val,y_01_val,X_01_test,y_01_test = data_split(X_01_fea,y_01,0.3)
+    ml_clf = ml_classifier(X_01_train,y_01_train, X_01_val,y_01_val,X_01_test,y_01_test,'lgbm',True)
 
 
 if __name__ == '__main__':
