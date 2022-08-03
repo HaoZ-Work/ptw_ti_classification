@@ -57,12 +57,13 @@ def load_data(data_folder:str, label_path:str) ->pd.DataFrame:
 
     return meta_pd
 
-def convert_meta_to_np(meta_data:pd.DataFrame,padding_method:str,max_len:int)-> np.array:
+def convert_meta_to_np(meta_data:pd.DataFrame,padding_method:str,max_len:int,fft:bool)-> np.array:
     '''
     Create X,y in np.array() from meta data. padding methon and max_len of feature can be selected manually.
     :param meta_data: meta_pd
     :param padding_method: how to pad the data. e.g. 'mean','zero'
     :param max_len: the maximum length of features
+    :param fft: True for using fft preprocessing approach
     :return: X: np.array(num_sample,max_len,num_features), y:np.array(num_sample,1)
     '''
     # create an empty tensor container for loading csv file into one tensor.
@@ -77,6 +78,10 @@ def convert_meta_to_np(meta_data:pd.DataFrame,padding_method:str,max_len:int)-> 
         y = np.append(y, meta_data[meta_data["id"] == sample].label.values)
         # normalize the loaded data
         # print(current_sample.shape)
+
+
+        if fft==True:
+            current_sample = np.abs(np.fft.rfft(current_sample, axis=0))
 
         trs = preprocessing.Normalizer().fit(current_sample)
         current_sample = trs.transform(current_sample)
@@ -182,16 +187,16 @@ def main():
     meta_pd_01 = load_data("data/Versuchreihe_09_2020/machine_data/","data/Versuchreihe_09_2020/Label.xlsx")
     meta_pd_02 = load_data("data/Versuchsreihe_01_2022/renamed_machine_data/","data/Versuchsreihe_01_2022/Label.xlsx")
 
-    X_01,y_01 = convert_meta_to_np(meta_pd_01,'mean',715)
-    X_02, y_02 = convert_meta_to_np(meta_pd_02, 'mean', 715)
+    X_01,y_01 = convert_meta_to_np(meta_pd_01,'mean',715,True)
+    X_02, y_02 = convert_meta_to_np(meta_pd_02, 'mean', 715,True)
     X_01_train,y_01_train, X_01_val,y_01_val,X_01_test,y_01_test = data_split(X_01,y_01,0.3)
 
     print("Training classifier...")
-    rf  = ml_classifier(X_01_train,y_01_train, X_01_val,y_01_val,X_01_test,y_01_test,'rf',False)
+    ml_clf  = ml_classifier(X_01_train,y_01_train, X_01_val,y_01_val,X_01_test,y_01_test,'mlp',True)
 
 
     print("Testing on test set")
-    test_step(rf,X_02,y_02)
+    test_step(ml_clf,X_02,y_02)
 
 
 if __name__ == '__main__':
