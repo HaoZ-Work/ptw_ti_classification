@@ -183,7 +183,7 @@ def test_step(clf:object,X:np.array,y:np.array):
     :return:
     '''
     y_test_pred = clf.predict(
-        X.reshape(X.shape[0], X.shape[1] * X.shape[2])
+        X
     )
     print(classification_report(y, y_test_pred))
 
@@ -227,18 +227,41 @@ def main():
 
 
     print("Testing on test set")
-    test_step(ml_clf,X_02,y_02)
+    test_step(ml_clf,X_02.reshape(X_02.shape[0],-1),y_02)
 
 
-
+    print("---Use extracted features from Tsfresh---")
     # Use extracted features from Tsfresh
     X_01_fea = load_feature('feature/X_tsf_01.csv')
-    ## TODO: feature selection? 18101 features are too much here.
+    X_02_fea = load_feature('feature/X_tsf_02.csv')
+
     selected_fea = X_01_fea.columns.tolist()
     selected_fea.remove('id')
     X_01_fea=convert_feature_to_np(X_01_fea, selected_fea)
+    X_02_fea = convert_feature_to_np(X_02_fea, selected_fea)
     X_01_train,y_01_train, X_01_val,y_01_val,X_01_test,y_01_test = data_split(X_01_fea,y_01,0.3)
-    ml_clf = ml_classifier(X_01_train,y_01_train, X_01_val,y_01_val,X_01_test,y_01_test,'lgbm',True)
+    ml_clf = ml_classifier(X_01_train,y_01_train, X_01_val,y_01_val,X_01_test,y_01_test,'lgbm',False)
+
+    test_step(ml_clf,X_02_fea,y_02)
+
+
+    # # Use selected extracted features from Tsfresh
+    # print("---Use selected extracted features from Tsfresh---")
+    # X_01_fea = load_feature('feature/X_01_filtered_feature.csv')
+    # X_02_fea = load_feature('feature/X_02_filtered_feature.csv')
+    #
+    # selected_fea = X_02_fea.columns.tolist()
+    # print(X_01_fea.columns)
+    # print(X_02_fea.columns)
+    # # the selected features from tsfresh are not same. Failed here. Need to select the feature manually.
+    # selected_fea.remove('id')
+    # X_01_fea = convert_feature_to_np(X_01_fea[selected_fea], selected_fea)
+    # X_02_fea = convert_feature_to_np(X_02_fea, selected_fea)
+    # X_01_train, y_01_train, X_01_val, y_01_val, X_01_test, y_01_test = data_split(X_01_fea, y_01, 0.3)
+    # ml_clf = ml_classifier(X_01_train, y_01_train, X_01_val, y_01_val, X_01_test, y_01_test, 'lgbm', True)
+    #
+    # test_step(ml_clf, X_02_fea, y_02)
+
 
 
 if __name__ == '__main__':
